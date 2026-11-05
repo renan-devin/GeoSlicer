@@ -12,6 +12,35 @@ import zipfile
 import io
 from datetime import datetime
 
+RESERVED_PROJECT_NAMES = {"temporary"}
+
+
+def safe_child_path(base_dir, name):
+    if not isinstance(name, str) or name in ("", ".", "..") or "/" in name or "\\" in name or Path(name).name != name:
+        raise ValueError(f"Invalid name in uploaded projects: {name!r}")
+
+    base_dir = Path(base_dir).resolve()
+    child = (base_dir / name).resolve()
+    if child.parent != base_dir:
+        raise ValueError(f"Invalid name in uploaded projects: {name!r}")
+    return child
+
+
+def validate_projects(json_dict, load_path):
+    if not isinstance(json_dict, dict):
+        raise ValueError("Invalid projects.json: expected an object.")
+
+    for key, project in json_dict.items():
+        if key in RESERVED_PROJECT_NAMES:
+            raise ValueError(f"Invalid name in uploaded projects: {key!r}")
+        source_dir = safe_child_path(load_path, key)
+        safe_child_path(PROJECTS_FOLDER, key)
+        if not isinstance(project, dict):
+            raise ValueError(f"Invalid project entry: {key!r}")
+        for filename in project.values():
+            if isinstance(filename, str) and (filename.endswith(".vtk") or filename.endswith(".nrrd")):
+                safe_child_path(source_dir, filename)
+
 
 def load_projects(zip_file, overwrite):
     target_dir = Path(PROJECTS_FOLDER) / "temporary"
@@ -39,6 +68,12 @@ def load_projects(zip_file, overwrite):
         else:
             dest_json_dict = {}
 
+        try:
+            validate_projects(json_dict, load_path)
+        except ValueError as e:
+            st.error(f"Uploaded zip was rejected: {e}")
+            return
+
         df = pd.read_csv(load_path / "folder_report.csv", index_col=0)
         if os.path.exists(f"{PROJECTS_FOLDER}/folder_report.csv"):
             dest_df = pd.read_csv(f"{PROJECTS_FOLDER}/folder_report.csv", index_col=0)
@@ -52,8 +87,8 @@ def load_projects(zip_file, overwrite):
             progress_bar.progress(min(progress_index / len(json_dict), 1), text=progress_text)
             progress_index += 1
 
-            source_dir = load_path / key
-            dest_dir = Path(PROJECTS_FOLDER) / key
+            source_dir = safe_child_path(load_path, key)
+            dest_dir = safe_child_path(PROJECTS_FOLDER, key)
             if os.path.exists(dest_dir):
                 if not overwrite:
                     not_overwritten_files = True
@@ -93,14 +128,14 @@ def convert_necessary(json_dict, key, dest_dir):
     if json_dict[key]["multiangle_model"].endswith(".vtk"):
         filename = json_dict[key]["multiangle_model"]
         newname = re.sub(".vtk", ".vtp", filename)
-        input_file = os.path.join(PROJECTS_FOLDER, key, filename)
-        output_file = os.path.join(PROJECTS_FOLDER, key, newname)
-        convert_vtk_to_xml(input_file, output_file)
+        input_file = safe_child_path(dest_dir, filename)
+        output_file = safe_child_path(dest_dir, newname)
+        convert_vtk_to_xml(str(input_file), str(output_file))
         json_dict[key]["multiangle_model"] = newname
 
     for filekey, filename in json_dict[key].items():
         if filename.endswith(".nrrd"):
-            input_file = os.path.join(PROJECTS_FOLDER, key, filename)
+            input_file = safe_child_path(dest_dir, filename)
             if os.path.getsize(input_file) > 200000000:
                 data, header = nrrd.read(input_file)
                 original_dimensions = np.array(data.shape)
@@ -110,13 +145,13 @@ def convert_necessary(json_dict, key, dest_dir):
                 nrrd.write(input_file, downscaled_data)
 
         if filename.endswith(".vtk"):
-            with open(dest_dir / filename, "br") as file:
+            input_file = safe_child_path(dest_dir, filename)
+            with open(input_file, "br") as file:
                 lines = file.readlines()
                 if len(lines) >= 3 and lines[2].strip() == b"BINARY":
                     newname = re.sub(".vtk", "_ascii.vtk", filename)
-                    input_file = os.path.join(PROJECTS_FOLDER, key, filename)
-                    output_file = os.path.join(PROJECTS_FOLDER, key, newname)
-                    convert_vtk_to_ascii(input_file, output_file)
+                    output_file = safe_child_path(dest_dir, newname)
+                    convert_vtk_to_ascii(str(input_file), str(output_file))
                     json_dict[key][filekey] = newname
 
 

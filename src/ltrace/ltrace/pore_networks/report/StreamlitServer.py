@@ -174,6 +174,8 @@ class StreamlitServer(qt.QWidget):
             "streamlit",
             "run",
             "PNM_Report.py",
+            "--server.address",
+            "127.0.0.1",
             "--server.port",
             str(int(self.port)),
             "--server.fileWatcherType",
@@ -235,7 +237,7 @@ class StreamlitServer(qt.QWidget):
         with open(f"{slicer.app.slicerHome}/LTrace/streamlit_server.log", "r") as f:
             message = f.read()
 
-        network_url_pattern = r"Network URL:\s*(http://\d+\.\d+\.\d+\.\d+:\d+)"
+        network_url_pattern = r"(?:Network )?URL:\s*(http://\d+\.\d+\.\d+\.\d+:\d+)"
         match = re.search(network_url_pattern, message)
         if match:
             self.ip_addr = match.group(1)
