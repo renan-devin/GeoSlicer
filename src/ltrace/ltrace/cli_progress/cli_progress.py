@@ -1,6 +1,7 @@
 import datetime
+import json
+import logging
 import os
-import pickle
 import time
 import zmq
 from collections import namedtuple
@@ -23,9 +24,11 @@ class IPCThread(Thread):
         self.socket = self.context.socket(zmq.PAIR)
 
         if self.zmq_port is None:
-            self.zmq_port = self.socket.bind_to_random_port("tcp://*", min_port=49152, max_port=65535, max_tries=100)
+            self.zmq_port = self.socket.bind_to_random_port(
+                "tcp://127.0.0.1", min_port=49152, max_port=65535, max_tries=100
+            )
         else:
-            self.socket.connect("tcp://localhost:{}".format(self.zmq_port))
+            self.socket.connect("tcp://127.0.0.1:{}".format(self.zmq_port))
 
         self.socket_poller = zmq.Poller()
         self.socket_poller.register(self.socket, zmq.POLLIN)
@@ -33,7 +36,7 @@ class IPCThread(Thread):
         while not self.should_stop:
             event_to_send = try_get_from_queue(self.to_send)
             while event_to_send is not None:
-                self.socket.send(pickle.dumps(event_to_send))
+                self.socket.send(encode_event(event_to_send))
                 event_to_send = try_get_from_queue(self.to_send)
 
             ready_sockets = self.socket_poller.poll(50)  # 50ms
@@ -44,7 +47,11 @@ class IPCThread(Thread):
             _, ready_events = ready_sockets[0]
 
             for _ in range(ready_events):
-                event = pickle.loads(self.socket.recv())
+                try:
+                    event = decode_event(self.socket.recv())
+                except ValueError as error:
+                    logging.warning("Discarding invalid progress IPC message: {}".format(error))
+                    continue
                 if self.received_callback is not None:
                     self.received_callback(event)
                 else:
@@ -52,7 +59,7 @@ class IPCThread(Thread):
 
         event_to_send = try_get_from_queue(self.to_send)
         while event_to_send is not None:
-            self.socket.send(pickle.dumps(event_to_send))
+            self.socket.send(encode_event(event_to_send))
             event_to_send = try_get_from_queue(self.to_send)
 
     def get_port(self):
@@ -121,9 +128,6 @@ class ProgressBarClient(object):
     def next_progress_step(self):
         return int(self.current_value + 1)
 
-    def _send_event(self, event):
-        self.socket.send(pickle.dumps(event))
-
     def _stop(self, event):
         if not isinstance(event, StopEvent):
             raise RuntimeError("Unknown event: ", event)
@@ -154,6 +158,44 @@ ConfigureEvent = namedtuple("ConfigureEvent", "steps initial_message")
 ProgressEvent = namedtuple("ProgressEvent", "value message")
 StopEvent = namedtuple("StopEvent", "")
 ErrorEvent = namedtuple("ErrorEvent", "message")
+
+_EVENT_TYPES = {
+    event_type.__name__: event_type for event_type in (ConfigureEvent, ProgressEvent, StopEvent, ErrorEvent)
+}
+_NUMBER_FIELDS = {"steps", "value"}
+_STRING_FIELDS = {"initial_message", "message"}
+
+
+def encode_event(event):
+    event_name = type(event).__name__
+    if _EVENT_TYPES.get(event_name) is not type(event):
+        raise TypeError("Unsupported progress event: {!r}".format(event))
+    return json.dumps({"type": event_name, "fields": event._asdict()}).encode("utf-8")
+
+
+def decode_event(data):
+    try:
+        payload = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("message is not valid JSON") from error
+
+    if not isinstance(payload, dict) or set(payload) != {"type", "fields"}:
+        raise ValueError("unexpected message structure")
+
+    event_type = _EVENT_TYPES.get(payload["type"]) if isinstance(payload["type"], str) else None
+    fields = payload["fields"]
+    if event_type is None:
+        raise ValueError("unknown event type")
+    if not isinstance(fields, dict) or set(fields) != set(event_type._fields):
+        raise ValueError("unexpected fields for {}".format(event_type.__name__))
+
+    for name, value in fields.items():
+        if name in _NUMBER_FIELDS and (isinstance(value, bool) or not isinstance(value, (int, float))):
+            raise ValueError("field '{}' must be a number".format(name))
+        if name in _STRING_FIELDS and not isinstance(value, str):
+            raise ValueError("field '{}' must be a string".format(name))
+
+    return event_type(**fields)
 
 
 def RunCLIWithProgressBar(module, parameters, title=""):
