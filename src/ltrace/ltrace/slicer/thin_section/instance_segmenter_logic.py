@@ -11,6 +11,7 @@ from ltrace.slicer.helpers import (
     updateSegmentationFromLabelMap,
 )
 from ltrace.slicer_utils import dataFrameToTableNode
+from ltrace.utils.dataframe_io import read_dataframe
 import numpy as np
 
 import pandas as pd
@@ -128,9 +129,9 @@ class ThinSectionInstanceSegmenterLogic:
                 else:
                     if params["calculate_statistics"] and cliConf["output_table"]:
                         try:
-                            output_report = pd.read_pickle(cliConf["output_table"])
+                            output_report = read_dataframe(cliConf["output_table"])
                             os.remove(cliConf["output_table"])
-                        except OSError as e:
+                        except (OSError, ValueError) as e:
                             self.warningMessage = (
                                 "Without data on table.\nCan't calculate statistics on predicted labels.\n"
                             )

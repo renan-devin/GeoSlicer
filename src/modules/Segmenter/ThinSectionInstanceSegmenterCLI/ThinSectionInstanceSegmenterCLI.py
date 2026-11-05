@@ -15,6 +15,7 @@ from ltrace.slicer.cli_utils import writeDataInto, readFrom, progressUpdate
 from ltrace.slicer.volume_operator import VolumeOperator, SegmentOperator
 from ltrace.algorithms.measurements import LabelStatistics2D, calculate_statistics_on_segments
 from ltrace import transforms
+from ltrace.utils.dataframe_io import write_dataframe
 
 import cv2
 from mmdet.apis import init_detector, inference_detector
@@ -516,7 +517,7 @@ def runcli(args):
         df, instances = calculate_statistics(df, instances, class_ids, classes, scale, spacing)
 
         if len(df) != 0 and args.output_table:
-            df.to_pickle(args.output_table)
+            write_dataframe(df, args.output_table)
 
     # Resize output labelmap
     new_instances = np.zeros((len(classes),) + tuple(ref_shape[1:]), dtype=np.uint16)

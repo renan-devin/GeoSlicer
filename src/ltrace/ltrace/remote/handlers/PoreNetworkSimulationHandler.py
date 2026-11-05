@@ -32,11 +32,12 @@ from ltrace.remote.constants import (
     JOB_STATE_RUNNING,
 )
 from ltrace.remote.jobs import JobManager
-from ltrace.remote.utils import argstring, dump_via_slicer_temp, SlurmJobStatusMixin
+from ltrace.remote.utils import argstring, create_private_job_dir, dump_via_slicer_temp, SlurmJobStatusMixin
 from ltrace.slicer.data_utils import dataFrameToTableNode
 from ltrace.slicer.node_attributes import TableType
 from ltrace.slicer_utils import tableNodeToDict
 from ltrace.sys_utils import priority_lock
+from ltrace.utils.dataframe_io import read_dataframe
 
 
 _1hour = 3600  # seconds
@@ -91,7 +92,7 @@ class PoreNetworkSimulationHandler(SlurmJobStatusMixin):
 
             # Only create directories and write JSON files if job_dir_name was not provided
             if not retried_job:
-                client.run_command(f"mkdir --parents {self.job_remote_path} && chmod -R 777 {self.job_remote_path}")
+                create_private_job_dir(client, self.job_remote_path)
                 client.run_command(f"mkdir {self.job_remote_path}/temp")
 
                 with priority_lock(interval=3600):  # 1 hour, for the largest simulations
@@ -391,7 +392,7 @@ def collect_two_phase_simulation(source_path, destination_folder_item, prefix):
         files = list(source_path.glob(pattern))
         if not files:
             raise FileNotFoundError(f"No files found matching pattern: {pattern}")
-        dataframes = [pd.read_pickle(str(f)) for f in sorted(files)]
+        dataframes = [read_dataframe(f) for f in sorted(files)]
         return pd.concat(dataframes, ignore_index=True)
 
     def aggregate_krel_cycle_dfs(dataframes):
@@ -470,7 +471,7 @@ def collect_two_phase_simulation(source_path, destination_folder_item, prefix):
         files = list(source_path.glob(pattern))
         if not files:
             raise FileNotFoundError(f"No files found matching pattern: {pattern}")
-        dataframes = [pd.read_pickle(str(f)) for f in sorted(files)]
+        dataframes = [read_dataframe(f) for f in sorted(files)]
 
         # Aggregate horizontally with reindexing and middle calculation
         cycle_df = aggregate_krel_cycle_dfs(dataframes)

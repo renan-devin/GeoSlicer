@@ -22,9 +22,10 @@ from ltrace.remote.constants import (
     JOB_STATE_RUNNING,
 )
 from ltrace.remote.jobs import JobManager
-from ltrace.remote.utils import argstring
+from ltrace.remote.utils import argstring, create_private_job_dir
 from ltrace.slicer import helpers
 from ltrace.slicer.data_utils import dataFrameToTableNode
+from ltrace.utils.dataframe_io import read_dataframe
 from ltrace.slicer.helpers import (
     clearPattern,
     generateName,
@@ -125,7 +126,11 @@ class ThinSectionInstanceSegmenterExecutionHandler:
 
         dirname = JobManager.dirname(caller.jobs[uid])
         job_dir = self.jobs_remote_path / dirname
-        stdout = client.run_command(f"mkdir --parents {job_dir} && chmod -R 777 {job_dir}")
+        try:
+            create_private_job_dir(client, job_dir)
+        except RuntimeError as e:
+            caller.set_state(uid, JOB_STATE_FAILED, 0, message="Failed to create the job directory.", traceback=repr(e))
+            return  # FAILED
 
         PYTHONSLICER = self.bin_path
 
@@ -371,9 +376,9 @@ class ResultHandler:
 
             if len(outputs) == 2:
                 try:
-                    output_report = pd.read_pickle(outputs[1])
+                    output_report = read_dataframe(outputs[1])
                     os.remove(outputs[1])
-                except OSError as e:
+                except (OSError, ValueError) as e:
                     slicer.util.warningDisplay("Without data on table.\n")
 
             if len(sliceNodes) == 0:

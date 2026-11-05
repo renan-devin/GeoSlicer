@@ -14,8 +14,9 @@ import slicer
 
 from ltrace.remote import utils as slurm_utils
 from ltrace.remote.jobs import JobManager
-from ltrace.remote.utils import argstring
+from ltrace.remote.utils import argstring, create_private_job_dir
 from ltrace.slicer_utils import dataFrameToTableNode
+from ltrace.utils.dataframe_io import read_dataframe
 
 
 class PoreNetworkKabsREVHandler:
@@ -55,7 +56,7 @@ class PoreNetworkKabsREVHandler:
             self.job_remote_path = self.JOBS_REMOTE_PATH / job_dir_name
             self.job_local_path = job_executor.host.get_mounted_path() / job_dir_name
 
-            client.run_command(f"mkdir --parents {self.job_remote_path} && chmod -R 777 {self.job_remote_path}")
+            create_private_job_dir(client, self.job_remote_path)
 
             with (self.job_local_path / "params_dict.json").open("w") as file:
                 json.dump(self.params, file)
@@ -239,7 +240,7 @@ class PoreNetworkKabsREVHandler:
                 logging.warning(f"File {path} not found.")
                 continue
 
-            df = pd.read_pickle(str(path))
+            df = read_dataframe(path)
             PermTableName = slicer.mrmlScene.GenerateUniqueName(f"kabs_rev_{i}")
             PermTable = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", PermTableName)
             _ = dataFrameToTableNode(df, PermTable)

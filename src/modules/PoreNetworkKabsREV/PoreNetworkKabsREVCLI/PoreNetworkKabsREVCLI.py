@@ -24,6 +24,7 @@ from ltrace.pore_networks.functions_extract import general_pn_extract
 from ltrace.pore_networks.functions_simulation import get_flow_rate, single_phase_permeability
 from ltrace.pore_networks.subres_models import get_subres_function
 from ltrace.slicer.cli_utils import progressUpdate
+from ltrace.utils.dataframe_io import write_dataframe
 
 logger = logging.getLogger("numba")
 logger.setLevel(logging.ERROR)
@@ -85,7 +86,7 @@ def readFrom(volumeFile, builder):
 
 
 def writeDataFrame(df, path):
-    df.to_pickle(str(path))
+    write_dataframe(df, path)
 
 
 def process_chunk(args, volume_array=None):
