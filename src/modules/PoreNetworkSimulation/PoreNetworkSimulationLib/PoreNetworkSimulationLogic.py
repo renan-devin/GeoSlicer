@@ -26,6 +26,7 @@ from ltrace.slicer import helpers
 from ltrace.slicer.binary_node import createBinaryNode, getBinary
 from ltrace.slicer.data_utils import dataFrameToTableNode
 from ltrace.slicer_utils import LTracePluginLogic, hide_nodes_of_type, tableNodeToDict
+from ltrace.utils.dataframe_io import read_dataframe
 from .constants import ONE_ANGLE, MULTI_ANGLE
 
 NUM_THREADS = 48
@@ -238,14 +239,14 @@ class OnePhaseSimulationLogic(LTracePluginLogic):
         flow_rate_table_name = slicer.mrmlScene.GenerateUniqueName("flow_rate")
         flow_rate_table = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", flow_rate_table_name)
         flow_rate_table.SetAttribute("table_type", "flow_rate_tensor")
-        flow_rate_df = pd.read_pickle(str(self.cwd / "flow.pd"))
+        flow_rate_df = read_dataframe(self.cwd / "flow.pd")
         _ = dataFrameToTableNode(flow_rate_df, flow_rate_table)
         _ = folderTree.CreateItem(self.rootDir, flow_rate_table)
 
         permeability_table_name = slicer.mrmlScene.GenerateUniqueName("permeability")
         permeability_table = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", permeability_table_name)
         permeability_table.SetAttribute("table_type", "permeability_tensor")
-        permeability_df = pd.read_pickle(str(self.cwd / "permeability.pd"))
+        permeability_df = read_dataframe(self.cwd / "permeability.pd")
         _ = dataFrameToTableNode(permeability_df, permeability_table)
         _ = folderTree.CreateItem(self.rootDir, permeability_table)
 
@@ -317,8 +318,8 @@ class OnePhaseSimulationLogic(LTracePluginLogic):
             folderTree.ItemModified(subDir)
 
             # Create Table nodes with PN properties
-            df_pores = pd.read_pickle(f"{self.temp_dir}/pores_{inlet}_{outlet}.pd")
-            df_throats = pd.read_pickle(f"{self.temp_dir}/throats_{inlet}_{outlet}.pd")
+            df_pores = read_dataframe(f"{self.temp_dir}/pores_{inlet}_{outlet}.pd")
+            df_throats = read_dataframe(f"{self.temp_dir}/throats_{inlet}_{outlet}.pd")
             poreOutputTableName = slicer.mrmlScene.GenerateUniqueName(f"{self.prefix}_pores_project")
             poreOutputTable = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", poreOutputTableName)
             poreOutputTable.SetAttribute("table_type", "project_pore_table")
@@ -818,7 +819,7 @@ class TwoPhaseSimulationLogic(LTracePluginLogic):
 
     #  utils
     def updateTableFromDataFrame(self, tableNode, dataFrameFileName):
-        dataFrame = pd.read_pickle(str(self.cwd / dataFrameFileName))
+        dataFrame = read_dataframe(self.cwd / dataFrameFileName)
         dataFrameToTableNode(dataFrame, tableNode)
         return True
 

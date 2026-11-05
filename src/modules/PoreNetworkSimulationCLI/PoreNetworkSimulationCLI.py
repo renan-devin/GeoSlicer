@@ -30,6 +30,7 @@ from ltrace.pore_networks.processing.vtk_utils import create_flow_model, create_
 from ltrace.pore_networks.subres_models import get_subres_function
 from ltrace.pore_networks.visualization_model import generate_model_variable_scalar
 from ltrace.slicer.cli_utils import progressUpdate
+from ltrace.utils.dataframe_io import write_dataframe
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -40,7 +41,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 def writeDataFrame(df, path):
-    df.to_pickle(str(path))
+    write_dataframe(df, path)
 
 
 def writePolydata(polydata, filename):

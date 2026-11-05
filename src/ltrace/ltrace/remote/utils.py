@@ -1,5 +1,6 @@
 import json
 import pickle
+import shlex
 import shutil
 import logging
 from pathlib import Path
@@ -335,6 +336,27 @@ def get_python_cmd(python_cmd_list=[], cli_cmd_list=[], remote_version=None, use
     )
 
     return main_cmd
+
+
+PRIVATE_JOB_DIR_MODE = "700"
+_PRIVATE_JOB_DIR_OK = "__GEOSLICER_PRIVATE_JOB_DIR_OK__"
+
+
+def create_private_job_dir(client, path):
+    """Create ``path`` on the cluster so that only the submitting user can access it.
+
+    Job folders are shared with the workstation through a network mount and hold result files that GeoSlicer loads,
+    so other cluster users must not be able to read or write them. Fails if the folder ends up owned by someone else.
+    """
+    quoted = shlex.quote(str(path))
+    output = client.run_command(
+        f"mkdir --parents -- {quoted} && chmod {PRIVATE_JOB_DIR_MODE} -- {quoted} && test -O {quoted} "
+        f"&& echo {_PRIVATE_JOB_DIR_OK}"
+    )
+    if output is None or _PRIVATE_JOB_DIR_OK not in output.get("stdout", ""):
+        stderr = output.get("stderr", "") if output else ""
+        raise RuntimeError(f"Failed to create private job directory '{path}': {stderr}")
+    return output
 
 
 def get_job_cmd(caller, uid, main_cmd, job_remote_path):

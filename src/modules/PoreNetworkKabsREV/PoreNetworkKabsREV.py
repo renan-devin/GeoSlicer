@@ -14,6 +14,7 @@ from ltrace.slicer.widget.global_progress_bar import LocalProgressBar
 from ltrace.slicer.widget.help_button import HelpButton
 from ltrace.slicer_utils import LTracePlugin, LTracePluginWidget, LTracePluginLogic, dataFrameToTableNode
 from ltrace.remote.handlers.PoreNetworkKabsREVHandler import PoreNetworkKabsREVHandler
+from ltrace.utils.dataframe_io import read_dataframe
 
 try:
     from Test.PoreNetworkKabsREVTest import PoreNetworkKabsREVTest
@@ -325,7 +326,7 @@ class PoreNetworkKabsREVLogic(LTracePluginLogic):
         # folderTree.RemoveItem(self.rootDir)
         tables = {}
         for i in "xyz":
-            df = pd.read_pickle(str(self.cwd / f"kabs_rev_{i}.pd"))
+            df = read_dataframe(self.cwd / f"kabs_rev_{i}.pd")
             PermTableName = slicer.mrmlScene.GenerateUniqueName(f"kabs_rev_{i}")
             PermTable = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", PermTableName)
             _ = dataFrameToTableNode(df, PermTable)

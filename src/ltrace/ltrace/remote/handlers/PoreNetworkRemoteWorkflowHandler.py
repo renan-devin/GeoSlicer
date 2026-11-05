@@ -17,9 +17,10 @@ from ltrace.pore_networks.simulation_parameters_node import PNM_PARAMETER_TYPE_A
 from ltrace.remote import utils as slurm_utils
 from ltrace.remote.handlers.PoreNetworkSimulationHandler import collect_two_phase_simulation
 from ltrace.remote.jobs import JobManager
-from ltrace.remote.utils import argstring, dump_via_slicer_temp, SlurmJobStatusMixin
+from ltrace.remote.utils import argstring, create_private_job_dir, dump_via_slicer_temp, SlurmJobStatusMixin
 from ltrace.slicer.data_utils import dataFrameToTableNode
 from ltrace.slicer.lazy import lazy
+from ltrace.utils.dataframe_io import read_dataframe
 
 _1hour = 3600  # seconds
 
@@ -76,7 +77,7 @@ class PoreNetworkRemoteWorkflowHandler(SlurmJobStatusMixin):
             self.workflow_dir_name = JobManager.dirname(job_executor)
             self.workflow_remote_path = self.JOBS_REMOTE_PATH / self.workflow_dir_name
             self.workflow_local_path = job_executor.host.get_mounted_path() / self.workflow_dir_name
-            client.run_command(f"mkdir -p {self.workflow_remote_path} && chmod -R 777 {self.workflow_remote_path}")
+            create_private_job_dir(client, self.workflow_remote_path)
             caller.schedule(uid, "START")
         except Exception:
             traceback.print_exc()
@@ -354,7 +355,7 @@ class PoreNetworkRemoteWorkflowHandler(SlurmJobStatusMixin):
                         pattern = "krelResults*"
                         files = list(job_local_path.glob(pattern))
                         if files:
-                            dataframes = [pd.read_pickle(str(f)) for f in sorted(files)]
+                            dataframes = [read_dataframe(f) for f in sorted(files)]
                             df = pd.concat(dataframes, ignore_index=True)
                             df["DS_factor"] = ds
                             krel_dfs.append(df)
@@ -401,7 +402,7 @@ class PoreNetworkRemoteWorkflowHandler(SlurmJobStatusMixin):
                             cycle_pattern = f"krelCycle{cycle}*"
                             cycle_files = list(job_local_path.glob(cycle_pattern))
                             if cycle_files:
-                                dataframes = [pd.read_pickle(str(f)) for f in sorted(cycle_files)]
+                                dataframes = [read_dataframe(f) for f in sorted(cycle_files)]
                                 cycle_df = self._process_krel_cycle_dataframes(dataframes)
                                 cycle_dfs.append((ds, cycle_df))
 
@@ -681,14 +682,14 @@ class PoreNetworkRemoteWorkflowHandler(SlurmJobStatusMixin):
             flow_rate_table_name = slicer.mrmlScene.GenerateUniqueName(f"{prefix}_flow_rate")
             flow_rate_table = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", flow_rate_table_name)
             flow_rate_table.SetAttribute("table_type", "flow_rate_tensor")
-            flow_rate_df = pd.read_pickle(str(job_local_path / "flow.pd"))
+            flow_rate_df = read_dataframe(job_local_path / "flow.pd")
             dataFrameToTableNode(flow_rate_df, flow_rate_table)
             shn.CreateItem(root_dir, flow_rate_table)
 
             permeability_table_name = slicer.mrmlScene.GenerateUniqueName(f"{prefix}_permeability")
             permeability_table = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", permeability_table_name)
             permeability_table.SetAttribute("table_type", "permeability_tensor")
-            permeability_df = pd.read_pickle(str(job_local_path / "permeability.pd"))
+            permeability_df = read_dataframe(job_local_path / "permeability.pd")
             dataFrameToTableNode(permeability_df, permeability_table)
             shn.CreateItem(root_dir, permeability_table)
 

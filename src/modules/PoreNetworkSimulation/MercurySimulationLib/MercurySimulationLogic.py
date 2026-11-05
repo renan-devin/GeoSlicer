@@ -18,6 +18,7 @@ from ltrace.pore_networks.simulation_parameters_node import dict_to_parameter_no
 from ltrace.pore_networks.subres_models import normalize_psd, estimate_radius, estimate_pressure, centers_to_edges
 from ltrace.slicer_utils import LTracePluginLogic, dataFrameToTableNode, slicer_is_in_developer_mode
 from ltrace.slicer_utils import tableNodeToDict
+from ltrace.utils.dataframe_io import read_dataframe
 
 
 class MercurySimulationLogic(LTracePluginLogic):
@@ -124,7 +125,7 @@ class MercurySimulationLogic(LTracePluginLogic):
 
         dict_to_parameter_node(self.params, self.rootDir)
 
-        pc = pd.read_pickle(str(self.cwd / "micpResults.pd"))
+        pc = read_dataframe(self.cwd / "micpResults.pd")
 
         with open(str(self.cwd / "return_net.dict"), "rb") as file:
             net = pickle.load(file)
